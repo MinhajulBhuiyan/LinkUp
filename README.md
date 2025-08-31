@@ -1,9 +1,5 @@
 # LinkUp – React Native Chat App  
 
-<p align="center">
-  <img src="https://user-images.githubusercontent.com/62745858/229376399-edede393-f1e7-4e91-8c68-d76510ece76f.png" width="100">
-</p>
-
 A simple **real-time chat app** built with **React Native (Expo)** and **Firebase** for authentication, messaging, and storage.  
 
 ---
