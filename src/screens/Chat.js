@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import EmojiModal from 'react-native-emoji-modal';
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { Send, Bubble, GiftedChat, InputToolbar, Day } from 'react-native-gifted-chat';
+import { Send, Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
 import { ref, getStorage, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import {
   View,
@@ -15,7 +15,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Text,
+  useColorScheme,
 } from 'react-native';
 
 import { colors } from '../config/constants';
@@ -45,112 +45,101 @@ const RenderLoading = ({ palette }) => (
   </View>
 );
 
-const RenderBubble = (props, palette) => (
-  <Bubble
-    {...props}
-    wrapperStyle={{
-      right: { 
-        backgroundColor: palette.primary,
-        marginVertical: 4,
-        padding: 6,
-      },
-      left: { 
-        backgroundColor: palette.mode === 'dark' ? '#3A3A3A' : '#5e5b5bff', 
-        marginVertical: 4,
-        padding: 6,
-      },
-    }}
-    textStyle={{
-      right: { 
-        color: '#FFFFFF',
-        fontSize: 16,
-        lineHeight: 20,
-      },
-      left: { 
-        color: palette.text,
-        fontSize: 16,
-        lineHeight: 20,
-      },
-    }}
-    timeTextStyle={{
-      right: { 
-        color: '#FFFFFFCC',
-        fontSize: 12,
-        marginTop: 4,
-      },
-      left: { 
-        color: palette.subtitle,
-        fontSize: 12,
-        marginTop: 4,
-      },
-    }}
-  />
-);
-
-const RenderDay = (props, palette) => (
-  <View style={styles.dayContainer}>
-    <Text style={[
-      styles.dayText,
-      {
-        color: palette.subtitle,
-        backgroundColor: palette.card,
-      }
-    ]}>
-      {new Date(props.currentMessage.createdAt).toLocaleDateString()}
-    </Text>
-  </View>
-);
-
-const RenderAttach = (props, palette) => (
-  <TouchableOpacity {...props} style={[styles.addImageIcon, { marginLeft: 8 }]}>
-    <Ionicons name="attach-outline" size={28} color={palette.teal} />
-  </TouchableOpacity>
-);
-
-const RenderInputToolbar = (props, handleEmojiPanel, palette) => (
-  <View
-    style={{
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-      backgroundColor: palette.card,
-      borderTopColor: palette.border,
-      borderTopWidth: StyleSheet.hairlineWidth,
-    }}
-  >
-    <InputToolbar
+const RenderBubble = (props) => {
+  const { palette } = useThemeMode();
+  return (
+    <Bubble
       {...props}
-      renderActions={() => RenderActions(handleEmojiPanel, palette)}
-      containerStyle={[
-        styles.inputToolbar,
-        {
-          backgroundColor: palette.background,
-          borderColor: palette.border,
-        }
-      ]}
-      placeholderTextColor={palette.subtitle}
-    />
-    <Send {...props}>
-      <View style={[
-        styles.sendIconContainer,
-        {
+      wrapperStyle={{
+        right: { 
           backgroundColor: palette.primary,
-        }
-      ]}>
-        <Ionicons name="send" size={22} color="#FFFFFF" />
-      </View>
-    </Send>
-  </View>
-);
+          marginVertical: 2,
+        },
+        left: { 
+          backgroundColor: palette.mode === 'dark' ? '#3d3d3dff' : '#25D366',
+          marginVertical: 2,
+        },
+      }}
+      textStyle={{
+        right: { color: '#FFFFFF' },
+        left: { 
+          color: palette.mode === 'dark' ? '#FFFFFF' : '#000000'
+        },
+      }}
+      timeTextStyle={{
+        right: { color: '#FFFFFFAA' },
+        left: { color: palette.subtitle },
+      }}
+      // Enhanced username styling for better visibility
+      usernameStyle={{
+        color: palette.mode === 'dark' ? '#E0E0E0' : '#333333', // Darker for light mode
+        fontSize: 12,
+        marginBottom: 3,
+      }}
+    />
+  );
+};
 
-const RenderActions = (handleEmojiPanel, palette) => (
-  <TouchableOpacity style={styles.emojiIcon} onPress={handleEmojiPanel}>
-    <Ionicons name="happy-outline" size={28} color={palette.teal} />
-  </TouchableOpacity>
-);
+const RenderAttach = (props) => {
+  const { palette } = useThemeMode();
+  return (
+    <TouchableOpacity {...props} style={[styles.addImageIcon, { marginLeft: 8 }]}>
+      <Ionicons name="attach-outline" size={28} color={palette.teal} />
+    </TouchableOpacity>
+  );
+};
+
+const RenderInputToolbar = (props) => {
+  const { palette } = useThemeMode();
+  const handleEmojiPanel = props.handleEmojiPanel;
+  
+  const RenderActions = () => (
+    <TouchableOpacity style={styles.emojiIcon} onPress={handleEmojiPanel}>
+      <Ionicons name="happy-outline" size={28} color={palette.teal} />
+    </TouchableOpacity>
+  );
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 4,
+        backgroundColor: palette.background,
+        borderTopColor: palette.border,
+        borderTopWidth: StyleSheet.hairlineWidth,
+      }}
+    >
+      <InputToolbar
+        {...props}
+        renderActions={RenderActions}
+        containerStyle={[
+          styles.inputToolbar,
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+          }
+        ]}
+        placeholderTextColor={palette.subtitle}
+      />
+      <Send {...props}>
+        <View style={[
+          styles.sendIconContainer,
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+          }
+        ]}>
+          <Ionicons name="send" size={22} color={palette.teal} />
+        </View>
+      </Send>
+    </View>
+  );
+};
 
 /** Custom avatar renderer */
-const RenderAvatar = (props, palette) => {
+const RenderAvatar = (props) => {
+  const { palette } = useThemeMode();
   const name = props?.currentMessage?.user?.name;
   const id = props?.currentMessage?.user?._id;
   const provided = props?.currentMessage?.user?.avatar;
@@ -336,34 +325,26 @@ function Chat({ route }) {
         messages={messages}
         showAvatarForEveryMessage={false}
         showUserAvatar={true}
-        renderAvatar={(props) => RenderAvatar(props, palette)}
+        renderAvatar={(props) => <RenderAvatar {...props} />}
         onSend={(messagesArr) => onSend(messagesArr)}
         imageStyle={{ height: 212, width: 212, borderRadius: 12 }}
-        messagesContainerStyle={{ 
-          backgroundColor: palette.background,
-          paddingHorizontal: 8,
-        }}
+        messagesContainerStyle={{ backgroundColor: palette.background }}
         textInputStyle={{ 
           backgroundColor: palette.card,
           color: palette.text,
           borderRadius: 20,
-          paddingHorizontal: 16,
-          paddingVertical: 8,
-          fontSize: 16,
-          borderWidth: 1,
-          borderColor: palette.border,
+          paddingHorizontal: 12,
         }}
         user={{
           _id: auth?.currentUser?.email,
           name: auth?.currentUser?.displayName,
           avatar: getAvatarUrl(auth?.currentUser?.displayName, auth?.currentUser?.email, 96),
         }}
-        renderBubble={(props) => RenderBubble(props, palette)}
-        renderDay={(props) => RenderDay(props, palette)}
-        renderSend={(props) => RenderAttach({ ...props, onPress: pickImage }, palette)}
+        renderBubble={(props) => <RenderBubble {...props} />}
+        renderSend={(props) => <RenderAttach {...props} onPress={pickImage} />}
         renderUsernameOnMessage
         renderAvatarOnTop
-        renderInputToolbar={(props) => RenderInputToolbar(props, handleEmojiPanel, palette)}
+        renderInputToolbar={(props) => <RenderInputToolbar {...props} handleEmojiPanel={handleEmojiPanel} />}
         minInputToolbarHeight={56}
         scrollToBottom
         onPressActionButton={handleEmojiPanel}
@@ -437,19 +418,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 4,
-  },
-  dayContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 16,
-  },
-  dayText: {
-    fontSize: 12,
-    fontWeight: '600',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    overflow: 'hidden',
   },
   emojiBackgroundModal: {
     flex: 1,

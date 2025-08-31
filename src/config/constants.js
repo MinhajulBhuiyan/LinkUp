@@ -13,7 +13,7 @@ export const colors = {
   lightBg: '#FFFFFF',
   lightCard: '#F8F9FA',    // Slightly off-white for better depth
   lightText: '#1a1a1a',    // Darker for better readability
-  lightSubtitle: '#666666', // Better contrast against light backgrounds
+  lightSubtitle: '#666666', // Dark gray for better contrast on light backgrounds
 
   // Dark theme tokens - Improved readability
   darkBg: '#121212',
