@@ -24,7 +24,7 @@ const Help = () => (
       onPress={() => {
         Alert.alert(
           'React Native Chat App',
-          'Developed by Cemil Tan',
+          'Developed by Minhajul Bhuiyan',
           [
             {
               text: 'Ok',

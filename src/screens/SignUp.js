@@ -22,6 +22,7 @@ export default function SignUp({ navigation }) {
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const onHandleSignup = () => {
     if (email !== '' && password !== '') {
@@ -67,16 +68,26 @@ export default function SignUp({ navigation }) {
           value={email}
           onChangeText={(text) => setEmail(text)}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Enter password"
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          textContentType="password"
-          value={password}
-          onChangeText={(text) => setPassword(text)}
-        />
+        <View style={{ position: 'relative' }}>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter password"
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry={!showPassword}
+            textContentType="password"
+            value={password}
+            onChangeText={(text) => setPassword(text)}
+          />
+          <TouchableOpacity
+            style={{ position: 'absolute', right: 16, top: 18 }}
+            onPress={() => setShowPassword((prev) => !prev)}
+          >
+            <Text style={{ color: colors.primary, fontWeight: 'bold' }}>
+              {showPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.button} onPress={onHandleSignup}>
           <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 18 }}> Sign Up</Text>
         </TouchableOpacity>

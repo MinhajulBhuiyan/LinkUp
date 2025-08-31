@@ -30,9 +30,11 @@ import {
 import { colors } from '../config/constants';
 import ContactRow from '../components/ContactRow';
 import { auth, database } from '../config/firebase';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 const Chats = ({ setUnreadCount }) => {
   const navigation = useNavigation();
+  const { palette } = useThemeMode();
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState([]);
@@ -172,23 +174,23 @@ const Chats = ({ setUnreadCount }) => {
 
   useEffect(() => {
     navigation.setOptions({
-      headerStyle: styles.header,
+      headerStyle: { backgroundColor: palette.card },
       headerTitle: 'Chats',
-      headerTitleStyle: styles.headerTitle,
+      headerTitleStyle: { color: palette.text },
       headerRight:
         selectedItems.length > 0
           ? () => (
               <TouchableOpacity style={styles.headerIcon} onPress={handleDeleteChat}>
-                <Ionicons name="trash-outline" size={22} color={colors.teal} />
+                <Ionicons name="trash-outline" size={22} color={palette.teal} />
               </TouchableOpacity>
             )
           : undefined,
       headerLeft:
         selectedItems.length > 0
-          ? () => <Text style={styles.itemCount}>{selectedItems.length}</Text>
+          ? () => <Text style={[styles.itemCount, { color: palette.teal }]}>{selectedItems.length}</Text>
           : undefined,
     });
-  }, [selectedItems, navigation, handleDeleteChat]);
+  }, [selectedItems, navigation, handleDeleteChat, palette]);
 
   const getSubtitle = useCallback((chat) => {
     const { messages } = chat.data();
@@ -211,11 +213,11 @@ const Chats = ({ setUnreadCount }) => {
   }, []);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
       <Pressable style={styles.container} onPress={deSelectItems}>
         {loading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={colors.teal} />
+            <ActivityIndicator size="large" color={palette.teal} />
           </View>
         ) : (
           <ScrollView
@@ -223,20 +225,28 @@ const Chats = ({ setUnreadCount }) => {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.sectionHeader}>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.teal} />
-              <Text style={styles.sectionTitle}>Conversations</Text>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={palette.teal} />
+              <Text style={[styles.sectionTitle, { color: palette.subtitle }]}>Conversations</Text>
             </View>
 
             {chats.length === 0 ? (
               <View style={styles.blankContainer}>
-                <Ionicons name="chatbox-outline" size={22} color="#999" />
-                <Text style={styles.textMuted}>No conversations yet</Text>
+                <Ionicons name="chatbox-outline" size={22} color={palette.subtitle} />
+                <Text style={[styles.textMuted, { color: palette.subtitle }]}>No conversations yet</Text>
               </View>
             ) : (
               chats.map((chat) => (
                 <View
                   key={chat.id}
-                  style={[styles.card, getSelected(chat) && styles.cardSelected]}
+                  style={[
+                    styles.card, 
+                    { backgroundColor: palette.card },
+                    getSelected(chat) && { 
+                      backgroundColor: palette.mode === 'dark' ? '#2a3b4d' : '#eaf7f7',
+                      borderWidth: 1,
+                      borderColor: palette.teal
+                    }
+                  ]}
                 >
                   <ContactRow
                     name={getChatName(chat)}
@@ -255,7 +265,7 @@ const Chats = ({ setUnreadCount }) => {
         )}
 
         <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.9}>
-          <View style={styles.fabContainer}>
+          <View style={[styles.fabContainer, { backgroundColor: palette.teal }]}>
             <Ionicons name="person-add-outline" size={22} color="#fff" />
           </View>
         </TouchableOpacity>
@@ -267,20 +277,9 @@ const Chats = ({ setUnreadCount }) => {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#fff', // light mode background
   },
   container: {
     flex: 1,
-  },
-  header: {
-    backgroundColor: '#fff',
-    elevation: 0,
-    shadowOpacity: 0,
-  },
-  headerTitle: {
-    color: '#222',
-    fontSize: 18,
-    fontWeight: '600',
   },
   scrollContent: {
     paddingHorizontal: 12,
@@ -295,14 +294,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   sectionTitle: {
-    color: '#444',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.2,
   },
   card: {
     borderRadius: 12,
-    backgroundColor: '#f9f9f9',
     marginVertical: 6,
     padding: 2,
     shadowColor: '#000',
@@ -311,11 +308,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
-  cardSelected: {
-    backgroundColor: '#eaf7f7',
-    borderWidth: 1,
-    borderColor: colors.teal,
-  },
   blankContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -323,7 +315,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   textMuted: {
-    color: '#888',
     fontSize: 14,
   },
   fab: {
@@ -337,7 +328,6 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: colors.teal,
     shadowColor: '#000',
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -345,7 +335,6 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   itemCount: {
-    color: colors.teal,
     fontSize: 18,
     fontWeight: '500',
     left: 100,

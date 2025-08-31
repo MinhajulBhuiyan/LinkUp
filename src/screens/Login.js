@@ -20,6 +20,7 @@ import backImage from '../assets/background.png';
 export default function Login({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const onHandleLogin = () => {
     if (email !== '' && password !== '') {
@@ -45,16 +46,26 @@ export default function Login({ navigation }) {
           value={email}
           onChangeText={(text) => setEmail(text)}
         />
-        <TextInput
-          style={styles.input}
-          placeholder="Enter password"
-          autoCapitalize="none"
-          autoCorrect={false}
-          secureTextEntry
-          textContentType="password"
-          value={password}
-          onChangeText={(text) => setPassword(text)}
-        />
+        <View style={{ position: 'relative' }}>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter password"
+            autoCapitalize="none"
+            autoCorrect={false}
+            secureTextEntry={!showPassword}
+            textContentType="password"
+            value={password}
+            onChangeText={(text) => setPassword(text)}
+          />
+          <TouchableOpacity
+            style={{ position: 'absolute', right: 16, top: 18 }}
+            onPress={() => setShowPassword((prev) => !prev)}
+          >
+            <Text style={{ color: colors.primary, fontWeight: 'bold' }}>
+              {showPassword ? 'Hide' : 'Show'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.button} onPress={onHandleLogin}>
           <Text style={{ fontWeight: 'bold', color: '#fff', fontSize: 18 }}> Log In</Text>
         </TouchableOpacity>

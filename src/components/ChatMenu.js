@@ -7,9 +7,11 @@ import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { Menu, MenuOption, MenuOptions, MenuTrigger } from 'react-native-popup-menu';
 
 import { auth, database } from '../config/firebase';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 const ChatMenu = ({ chatName, chatId }) => {
   const navigation = useNavigation();
+  const { palette } = useThemeMode();
 
   const handleDeleteChat = () => {
     Alert.alert(
@@ -54,30 +56,48 @@ const ChatMenu = ({ chatName, chatId }) => {
   return (
     <Menu>
       <MenuTrigger>
-        <Ionicons name="ellipsis-vertical" size={25} color="#373737" style={styles.menuIcon} />
+        <Ionicons name="ellipsis-vertical" size={25} color={palette.text} style={styles.menuIcon} />
       </MenuTrigger>
-      <MenuOptions customStyles={menuOptionsStyles}>
+      <MenuOptions customStyles={{
+        optionsContainer: {
+          borderRadius: 12,
+          paddingVertical: 4,
+          backgroundColor: palette.card,
+          shadowColor: '#000',
+          shadowOpacity: 0.15,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 6,
+          minWidth: 185,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: palette.border,
+        },
+        optionWrapper: {
+          backgroundColor: 'transparent',
+        },
+      }}>
         <MenuOption
           onSelect={() => navigation.navigate('ChatInfo', { chatId, chatName })}
           style={styles.optionRow}
         >
-          <Ionicons name="information-circle-outline" size={20} color="#008069" style={styles.optionIcon} />
-          <Text style={styles.optionText}>Chat Info</Text>
+          <Ionicons name="information-circle-outline" size={20} color={palette.primary} style={styles.optionIcon} />
+          <Text style={[styles.optionText, { color: palette.text }]}>Chat Info</Text>
         </MenuOption>
+        
+        <MenuOption
+          onSelect={() => Alert.alert('Mute Chat', 'This feature is coming soon')}
+          style={styles.optionRow}
+        >
+          <Ionicons name="volume-mute-outline" size={20} color={palette.text} style={styles.optionIcon} />
+          <Text style={[styles.optionText, { color: palette.text }]}>Mute Chat</Text>
+        </MenuOption>
+
         <MenuOption
           onSelect={handleDeleteChat}
           style={styles.optionRow}
         >
-          <Ionicons name="trash-outline" size={20} color="#FF3B30" style={styles.optionIcon} />
-          <Text style={[styles.optionText, { color: '#FF3B30' }]}>Delete Chat</Text>
-        </MenuOption>
-
-        <MenuOption
-          onSelect={() => Alert.alert('Feature coming soon')}
-          style={styles.optionRow}
-        >
-          <Ionicons name="volume-mute-outline" size={20} color="#373737" style={styles.optionIcon} />
-          <Text style={styles.optionText}>Mute Chat</Text>
+          <Ionicons name="trash-outline" size={20} color={palette.danger} style={styles.optionIcon} />
+          <Text style={[styles.optionText, { color: palette.danger }]}>Delete Chat</Text>
         </MenuOption>
       </MenuOptions>
     </Menu>
@@ -99,28 +119,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   optionText: {
-    color: '#373737',
     fontSize: 16,
     fontWeight: '500',
   },
 });
-
-const menuOptionsStyles = {
-  optionsContainer: {
-    borderRadius: 12,
-    paddingVertical: 4,
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOpacity: 0.11,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 4,
-    minWidth: 185,
-  },
-  optionWrapper: {
-    backgroundColor: 'transparent',
-  },
-};
 
 ChatMenu.propTypes = {
   chatName: PropTypes.string.isRequired,

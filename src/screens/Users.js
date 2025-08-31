@@ -7,9 +7,11 @@ import Cell from '../components/Cell';
 import { colors } from '../config/constants';
 import ContactRow from '../components/ContactRow';
 import { auth, database } from '../config/firebase';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 const Users = () => {
   const navigation = useNavigation();
+  const { palette } = useThemeMode();
   const [users, setUsers] = useState([]);
   const [existingChats, setExistingChats] = useState([]);
 
@@ -44,17 +46,16 @@ const Users = () => {
     };
   }, []);
 
-  // --- define helpers BEFORE use, or as function declarations (hoisted) ---
   function handleName(user) {
     const { name, email } = user.data();
     if (name) {
-      return email === auth?.currentUser?.email ? `${name}*(You)` : name;
+      return email === auth?.currentUser?.email ? `${name} (You)` : name;
     }
     return email || '~ No Name or Email ~';
   }
 
   const handleSubtitle = useCallback(
-    (user) => (user.data().email === auth?.currentUser?.email ? 'Message yourself' : 'User status'),
+    (user) => (user.data().email === auth?.currentUser?.email ? 'Message yourself' : 'Tap to start chat'),
     []
   );
 
@@ -63,7 +64,7 @@ const Users = () => {
   }, [navigation]);
 
   const handleNewUser = useCallback(() => {
-    alert('New user');
+    alert('Add new user feature coming soon');
   }, []);
 
   const handleNavigate = useCallback(
@@ -122,34 +123,40 @@ const Users = () => {
         });
       }
     },
-    [existingChats, navigation] // handleName not needed; it's hoisted & stable
+    [existingChats, navigation]
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
       <Cell
-        title="New group"
-        icon="people"
-        tintColor={colors.teal}
-        onPress={handleNewGroup}
-        style={{ marginTop: 5 }}
-      />
-      <Cell
-        title="New user"
-        icon="person-add"
-        tintColor={colors.teal}
-        onPress={handleNewUser}
-        style={{ marginBottom: 10 }}
-      />
+  title="New group"
+  icon="people"
+  tintColor={palette.teal}
+  iconColor={palette.primary}  // Changed from palette.text
+  onPress={handleNewGroup}
+  style={[styles.cell, { backgroundColor: palette.card }]}
+/>
+<Cell
+  title="Add new user"
+  icon="person-add"
+  tintColor={palette.teal}
+  iconColor={palette.primary}  // Changed from palette.text
+  onPress={handleNewUser}
+  style={[styles.cell, { backgroundColor: palette.card, marginBottom: 16 }]}
+/>
 
       {users.length === 0 ? (
         <View style={styles.blankContainer}>
-          <Text style={styles.textContainer}>No registered users yet</Text>
+          <Text style={[styles.textMuted, { color: palette.subtitle }]}>
+            No registered users yet
+          </Text>
         </View>
       ) : (
         <ScrollView>
-          <View>
-            <Text style={styles.textContainer}>Registered users</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: palette.text }]}>
+              Registered users
+            </Text>
           </View>
           {users.map((user) => (
             <React.Fragment key={user.id}>
@@ -158,6 +165,7 @@ const Users = () => {
                 subtitle={handleSubtitle(user)}
                 onPress={() => handleNavigate(user)}
                 showForwardIcon={false}
+                style={{ backgroundColor: palette.card }}
               />
             </React.Fragment>
           ))}
@@ -168,9 +176,35 @@ const Users = () => {
 };
 
 const styles = StyleSheet.create({
-  blankContainer: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  container: { flex: 1 },
-  textContainer: { fontSize: 16, fontWeight: '300', marginLeft: 16 },
+  blankContainer: { 
+    alignItems: 'center', 
+    flex: 1, 
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  container: { 
+    flex: 1,
+  },
+  cell: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    borderWidth: 0,
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+  textMuted: {
+    fontSize: 16,
+    fontWeight: '400',
+  },
 });
 
 export default Users;

@@ -5,7 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import EmojiModal from 'react-native-emoji-modal';
 import React, { useState, useEffect, useCallback } from 'react';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { Send, Bubble, GiftedChat, InputToolbar } from 'react-native-gifted-chat';
+import { Send, Bubble, GiftedChat, InputToolbar, Day } from 'react-native-gifted-chat';
 import { ref, getStorage, getDownloadURL, uploadBytesResumable } from 'firebase/storage';
 import {
   View,
@@ -14,105 +14,164 @@ import {
   BackHandler,
   TouchableOpacity,
   ActivityIndicator,
-  Image, // <-- added for custom avatar
+  Image,
+  Text,
 } from 'react-native';
 
 import { colors } from '../config/constants';
 import { auth, database } from '../config/firebase';
+import { useThemeMode } from '../contexts/ThemeContext';
 
-/** ---------- Avatar helpers (UI only, no logic change) ---------- **/
+/** ---------- Avatar helpers ---------- **/
 const getAvatarSeed = (name, email) => {
   const base = (name || '').trim() || (email || '').trim() || 'user';
   return encodeURIComponent(base.toLowerCase());
 };
 
-// Professional, consistent avatars via DiceBear (PNG)
 const getAvatarUrl = (name, email, size = 96) => {
   const seed = getAvatarSeed(name, email);
-  // You can switch styles here: "initials", "identicon", "shapes", "thumbs", "fun-emoji"
-  // initials looks professional and clean for chat UIs
   return `https://api.dicebear.com/8.x/initials/png?seed=${seed}&radius=50&size=${size}&backgroundType=gradientLinear`;
 };
 
-const RenderLoadingUpload = () => (
-  <View style={styles.loadingContainerUpload}>
-    <ActivityIndicator size="large" color={colors.teal} />
+const RenderLoadingUpload = ({ palette }) => (
+  <View style={[styles.loadingContainerUpload, { backgroundColor: 'rgba(0, 0, 0, 0.7)' }]}>
+    <ActivityIndicator size="large" color={palette.teal} />
   </View>
 );
 
-const RenderLoading = () => (
+const RenderLoading = ({ palette }) => (
   <View style={styles.loadingContainer}>
-    <ActivityIndicator size="large" color={colors.teal} />
+    <ActivityIndicator size="large" color={palette.teal} />
   </View>
 );
 
-const RenderBubble = (props) => (
+const RenderBubble = (props, palette) => (
   <Bubble
     {...props}
     wrapperStyle={{
-      right: { backgroundColor: colors.primary },
-      left: { backgroundColor: '#EFEFEF' },
+      right: { 
+        backgroundColor: palette.primary,
+        marginVertical: 4,
+        padding: 6,
+      },
+      left: { 
+        backgroundColor: palette.mode === 'dark' ? '#3A3A3A' : '#5e5b5bff', 
+        marginVertical: 4,
+        padding: 6,
+      },
+    }}
+    textStyle={{
+      right: { 
+        color: '#FFFFFF',
+        fontSize: 16,
+        lineHeight: 20,
+      },
+      left: { 
+        color: palette.text,
+        fontSize: 16,
+        lineHeight: 20,
+      },
+    }}
+    timeTextStyle={{
+      right: { 
+        color: '#FFFFFFCC',
+        fontSize: 12,
+        marginTop: 4,
+      },
+      left: { 
+        color: palette.subtitle,
+        fontSize: 12,
+        marginTop: 4,
+      },
     }}
   />
 );
 
-const RenderAttach = (props) => (
-  <TouchableOpacity {...props} style={styles.addImageIcon}>
-    <View>
-      <Ionicons name="attach-outline" size={28} color={colors.teal} />
-    </View>
+const RenderDay = (props, palette) => (
+  <View style={styles.dayContainer}>
+    <Text style={[
+      styles.dayText,
+      {
+        color: palette.subtitle,
+        backgroundColor: palette.card,
+      }
+    ]}>
+      {new Date(props.currentMessage.createdAt).toLocaleDateString()}
+    </Text>
+  </View>
+);
+
+const RenderAttach = (props, palette) => (
+  <TouchableOpacity {...props} style={[styles.addImageIcon, { marginLeft: 8 }]}>
+    <Ionicons name="attach-outline" size={28} color={palette.teal} />
   </TouchableOpacity>
 );
 
-const RenderInputToolbar = (props, handleEmojiPanel) => (
+const RenderInputToolbar = (props, handleEmojiPanel, palette) => (
   <View
     style={{
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 4,
-      backgroundColor: 'white',
+      paddingVertical: 8,
+      backgroundColor: palette.card,
+      borderTopColor: palette.border,
+      borderTopWidth: StyleSheet.hairlineWidth,
     }}
   >
     <InputToolbar
       {...props}
-      renderActions={() => RenderActions(handleEmojiPanel)}
-      containerStyle={styles.inputToolbar}
+      renderActions={() => RenderActions(handleEmojiPanel, palette)}
+      containerStyle={[
+        styles.inputToolbar,
+        {
+          backgroundColor: palette.background,
+          borderColor: palette.border,
+        }
+      ]}
+      placeholderTextColor={palette.subtitle}
     />
     <Send {...props}>
-      <View style={styles.sendIconContainer}>
-        <Ionicons name="send" size={22} color={colors.teal} />
+      <View style={[
+        styles.sendIconContainer,
+        {
+          backgroundColor: palette.primary,
+        }
+      ]}>
+        <Ionicons name="send" size={22} color="#FFFFFF" />
       </View>
     </Send>
   </View>
 );
 
-const RenderActions = (handleEmojiPanel) => (
+const RenderActions = (handleEmojiPanel, palette) => (
   <TouchableOpacity style={styles.emojiIcon} onPress={handleEmojiPanel}>
-    <View>
-      <Ionicons name="happy-outline" size={28} color={colors.teal} />
-    </View>
+    <Ionicons name="happy-outline" size={28} color={palette.teal} />
   </TouchableOpacity>
 );
 
-/** Custom avatar renderer with graceful fallback */
-const RenderAvatar = (props) => {
+/** Custom avatar renderer */
+const RenderAvatar = (props, palette) => {
   const name = props?.currentMessage?.user?.name;
   const id = props?.currentMessage?.user?._id;
   const provided = props?.currentMessage?.user?.avatar;
   const uri = provided || getAvatarUrl(name, id, 96);
 
   return (
-    <View style={styles.avatarWrap}>
+    <View style={[
+      styles.avatarWrap,
+      { backgroundColor: palette.mode === 'dark' ? '#3A3A3A' : '#EAEAEA' }
+    ]}>
       {uri ? (
         <Image source={{ uri }} style={styles.avatarImg} />
       ) : (
-        <Ionicons name="person-circle-outline" size={36} color="#A7A7A7" />
+        <Ionicons name="person-circle-outline" size={36} color={palette.subtitle} />
       )}
     </View>
   );
 };
 
 function Chat({ route }) {
+  const { palette } = useThemeMode();
   const [messages, setMessages] = useState([]);
   const [modal, setModal] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -120,14 +179,11 @@ function Chat({ route }) {
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(database, 'chats', route.params.id), (document) => {
       const raw = document.data()?.messages || [];
-      // Ensure avatar is always present for clean UI
       const mapped = raw.map((message) => {
         const createdAt = message.createdAt?.toDate ? message.createdAt.toDate() : message.createdAt;
         const user = {
           ...message.user,
-          avatar:
-            message.user?.avatar ||
-            getAvatarUrl(message.user?.name, message.user?._id, 96),
+          avatar: message.user?.avatar || getAvatarUrl(message.user?.name, message.user?._id, 96),
         };
         return {
           ...message,
@@ -171,13 +227,10 @@ function Chat({ route }) {
         image: message.image ?? '',
         user: {
           ...message.user,
-          avatar:
-            message.user?.avatar ||
-            getAvatarUrl(message.user?.name, message.user?._id, 96),
+          avatar: message.user?.avatar || getAvatarUrl(message.user?.name, message.user?._id, 96),
         },
       }));
 
-      // Ensure our outgoing message also has a professional avatar
       const meEmail = auth?.currentUser?.email;
       const meName = auth?.currentUser?.displayName;
       const myAvatar = getAvatarUrl(meName, meEmail, 96);
@@ -242,6 +295,7 @@ function Chat({ route }) {
       () => {},
       (error) => {
         console.log(error);
+        setUploading(false);
       },
       async () => {
         const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
@@ -277,42 +331,77 @@ function Chat({ route }) {
 
   return (
     <>
-      {uploading && RenderLoadingUpload()}
+      {uploading && <RenderLoadingUpload palette={palette} />}
       <GiftedChat
         messages={messages}
         showAvatarForEveryMessage={false}
-        showUserAvatar={true}                 // show your avatar near your messages
-        renderAvatar={RenderAvatar}           // custom avatar with fallback + circle mask
+        showUserAvatar={true}
+        renderAvatar={(props) => RenderAvatar(props, palette)}
         onSend={(messagesArr) => onSend(messagesArr)}
         imageStyle={{ height: 212, width: 212, borderRadius: 12 }}
-        messagesContainerStyle={{ backgroundColor: '#fff' }}
-        textInputStyle={{ backgroundColor: '#fff', borderRadius: 20 }}
+        messagesContainerStyle={{ 
+          backgroundColor: palette.background,
+          paddingHorizontal: 8,
+        }}
+        textInputStyle={{ 
+          backgroundColor: palette.card,
+          color: palette.text,
+          borderRadius: 20,
+          paddingHorizontal: 16,
+          paddingVertical: 8,
+          fontSize: 16,
+          borderWidth: 1,
+          borderColor: palette.border,
+        }}
         user={{
           _id: auth?.currentUser?.email,
           name: auth?.currentUser?.displayName,
           avatar: getAvatarUrl(auth?.currentUser?.displayName, auth?.currentUser?.email, 96),
         }}
-        renderBubble={(props) => RenderBubble(props)}
-        renderSend={(props) => RenderAttach({ ...props, onPress: pickImage })}
+        renderBubble={(props) => RenderBubble(props, palette)}
+        renderDay={(props) => RenderDay(props, palette)}
+        renderSend={(props) => RenderAttach({ ...props, onPress: pickImage }, palette)}
         renderUsernameOnMessage
         renderAvatarOnTop
-        renderInputToolbar={(props) => RenderInputToolbar(props, handleEmojiPanel)}
+        renderInputToolbar={(props) => RenderInputToolbar(props, handleEmojiPanel, palette)}
         minInputToolbarHeight={56}
         scrollToBottom
         onPressActionButton={handleEmojiPanel}
-        scrollToBottomStyle={styles.scrollToBottomStyle}
-        renderLoading={RenderLoading}
+        scrollToBottomStyle={[
+          styles.scrollToBottomStyle,
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+          }
+        ]}
+        renderLoading={() => <RenderLoading palette={palette} />}
+        placeholder="Type a message..."
+        timeFormat="HH:mm"
+        dateFormat="ll"
+        listViewProps={{
+          style: { backgroundColor: palette.background },
+        }}
       />
 
       {modal && (
         <EmojiModal
           onPressOutside={handleEmojiPanel}
-          modalStyle={styles.emojiModal}
+          modalStyle={[
+            styles.emojiModal,
+            {
+              backgroundColor: palette.card,
+            }
+          ]}
           containerStyle={styles.emojiContainerModal}
-          backgroundStyle={styles.emojiBackgroundModal}
+          backgroundStyle={[
+            styles.emojiBackgroundModal,
+            {
+              backgroundColor: palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
+            }
+          ]}
           columns={5}
           emojiSize={66}
-          activeShortcutColor={colors.primary}
+          activeShortcutColor={palette.primary}
           onEmojiSelected={(emoji) => {
             const meEmail = auth?.currentUser?.email;
             const meName = auth?.currentUser?.displayName;
@@ -330,6 +419,7 @@ function Chat({ route }) {
                 },
               },
             ]);
+            setModal(false);
           }}
         />
       )}
@@ -342,33 +432,49 @@ const AVATAR = 36;
 const styles = StyleSheet.create({
   addImageIcon: {
     borderRadius: 16,
-    bottom: 8,
     height: 32,
     width: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 4,
   },
-  emojiBackgroundModal: {},
+  dayContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 16,
+  },
+  dayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  emojiBackgroundModal: {
+    flex: 1,
+  },
   emojiContainerModal: {
     height: 348,
-    width: 396,
+    width: '100%',
   },
   emojiIcon: {
     borderRadius: 16,
-    bottom: 8,
     height: 32,
-    marginLeft: 4,
     width: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
+    marginRight: 4,
   },
-  emojiModal: {},
+  emojiModal: {
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
   inputToolbar: {
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderColor: colors.grey,
     borderRadius: 22,
-    borderWidth: 0.5,
     flex: 1,
     flexDirection: 'row',
     marginHorizontal: 8,
@@ -382,7 +488,6 @@ const styles = StyleSheet.create({
   },
   loadingContainerUpload: {
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     bottom: 0,
     justifyContent: 'center',
     left: 0,
@@ -392,9 +497,7 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   scrollToBottomStyle: {
-    borderColor: colors.grey,
     borderRadius: 28,
-    borderWidth: 1,
     bottom: 12,
     height: 56,
     position: 'absolute',
@@ -403,22 +506,17 @@ const styles = StyleSheet.create({
   },
   sendIconContainer: {
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderColor: colors.grey,
     borderRadius: 22,
-    borderWidth: 0.5,
     height: 44,
     justifyContent: 'center',
     marginRight: 8,
     width: 44,
   },
-  /** Avatar styles */
   avatarWrap: {
     width: AVATAR,
     height: AVATAR,
     borderRadius: AVATAR / 2,
     overflow: 'hidden',
-    backgroundColor: '#EAEAEA',
     alignItems: 'center',
     justifyContent: 'center',
   },

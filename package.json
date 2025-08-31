@@ -1,14 +1,14 @@
 {
-  "name": "react-native-chat",
+  "name": "linkup",
   "version": "1.0.0",
   "main": "./src/App.js",
   "private": false,
   "license": "MIT",
-  "author": "Cemil Tan",
+  "author": "Minhajul Bhuiyan",
   "description": "A React Native chat application using Expo, Firebase, and various libraries for enhanced functionality.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Ctere1/react-native-chat.git"
+    "url": "https://github.com/MinhajulBhuiyan/LinkUp.git"
   },
   "keywords": [
     "react-native",

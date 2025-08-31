@@ -1,13 +1,23 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useThemeMode } from '../contexts/ThemeContext';
 
-import { colors } from '../config/constants';
-
-const Separator = () => <View style={styles.separator} />;
+const Separator = ({ style }) => {
+  const { palette } = useThemeMode();
+  
+  return (
+    <View 
+      style={[
+        styles.separator, 
+        { backgroundColor: palette.border },
+        style
+      ]} 
+    />
+  );
+};
 
 const styles = StyleSheet.create({
   separator: {
-    backgroundColor: colors.border,
     height: StyleSheet.hairlineWidth,
   },
 });

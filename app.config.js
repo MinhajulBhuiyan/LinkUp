@@ -3,8 +3,8 @@ import process from 'process';
 
 export default {
   expo: {
-    name: 'react-native-chat',
-    slug: 'react-native-chat',
+    name: 'linkup',
+    slug: 'linkup',
     version: '1.0.0',
     orientation: 'portrait',
     icon: 'src/assets/icon.png',

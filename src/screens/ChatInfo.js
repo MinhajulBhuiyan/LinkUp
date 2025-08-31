@@ -4,15 +4,18 @@ import { doc, getDoc } from 'firebase/firestore';
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, Alert, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTheme } from '@react-navigation/native';
 
 import Cell from '../components/Cell';
 import { colors } from '../config/constants';
 import { database } from '../config/firebase';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 const ChatInfo = ({ route }) => {
   const { chatId, chatName } = route.params;
   const [users, setUsers] = useState([]);
   const [groupName, setGroupName] = useState('');
+  const { palette } = useThemeMode();
 
   // Generate beautiful avatar color
   const generateAvatarColor = (name) => {
@@ -23,7 +26,7 @@ const ChatInfo = ({ route }) => {
     
     const hue = Math.abs(hash) % 360;
     const saturation = 75 + (Math.abs(hash) % 15);
-    const lightness = 50 + (Math.abs(hash) % 15);
+    const lightness = palette.mode === 'dark' ? 40 + (Math.abs(hash) % 15) : 50 + (Math.abs(hash) % 15);
     
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   };
@@ -59,7 +62,7 @@ const ChatInfo = ({ route }) => {
   }, [chatId]);
 
   const renderUser = ({ item }) => (
-    <View style={styles.userContainer}>
+    <View style={[styles.userContainer, { backgroundColor: palette.card, borderBottomColor: palette.border }]}>
       <View style={[styles.userAvatar, { backgroundColor: generateAvatarColor(item.name) }]}>
         <View style={styles.userAvatarInner}>
           <Text style={styles.userAvatarLabel}>
@@ -68,8 +71,8 @@ const ChatInfo = ({ route }) => {
         </View>
       </View>
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.name}</Text>
-        <Text style={styles.userEmail}>{item.email}</Text>
+        <Text style={[styles.userName, { color: palette.text }]}>{item.name}</Text>
+        <Text style={[styles.userEmail, { color: palette.subtitle }]}>{item.email}</Text>
       </View>
     </View>
   );
@@ -77,7 +80,7 @@ const ChatInfo = ({ route }) => {
   const uniqueUsers = Array.from(new Map(users.map((user) => [user.email, user])).values());
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
       <View style={styles.avatarContainer}>
         <TouchableOpacity style={[styles.avatar, { backgroundColor: generateAvatarColor(chatName) }]}>
           <View style={styles.avatarInner}>
@@ -91,11 +94,11 @@ const ChatInfo = ({ route }) => {
       <View style={styles.chatHeader}>
         {groupName ? (
           <>
-            <Text style={styles.groupLabel}>Group</Text>
-            <Text style={styles.chatTitle}>{chatName}</Text>
+            <Text style={[styles.groupLabel, { color: palette.primary }]}>Group</Text>
+            <Text style={[styles.chatTitle, { color: palette.text }]}>{chatName}</Text>
           </>
         ) : (
-          <Text style={styles.chatTitle}>{chatName}</Text>
+          <Text style={[styles.chatTitle, { color: palette.text }]}>{chatName}</Text>
         )}
       </View>
 
@@ -103,16 +106,18 @@ const ChatInfo = ({ route }) => {
         title="About"
         subtitle="Available"
         icon="information-circle-outline"
-        iconColor={colors.primary}
-        style={styles.cell}
+        iconColor={palette.primary}
+        style={[styles.cell, { backgroundColor: palette.card }]}
+        titleStyle={{ color: palette.text }}
+        subtitleStyle={{ color: palette.subtitle }}
       />
 
-      <Text style={styles.usersTitle}>Members</Text>
+      <Text style={[styles.usersTitle, { color: palette.text }]}>Members</Text>
       <FlatList
         data={uniqueUsers}
         renderItem={renderUser}
         keyExtractor={(item) => item.email}
-        contentContainerStyle={styles.usersList}
+        contentContainerStyle={[styles.usersList, { backgroundColor: palette.card }]}
       />
     </SafeAreaView>
   );
@@ -157,7 +162,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   cell: {
-    backgroundColor: 'white',
     borderRadius: 12,
     elevation: 1,
     marginBottom: 15,
@@ -173,26 +177,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   chatTitle: {
-    color: '#333',
     fontSize: 22,
     fontWeight: '600',
     textAlign: 'center',
   },
   container: {
-    backgroundColor: '#f9f9f9',
     flex: 1,
   },
   groupLabel: {
-    color: colors.primary,
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
   },
   userContainer: {
     alignItems: 'center',
-    backgroundColor: 'white',
-    borderBottomColor: '#eee',
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -230,19 +229,16 @@ const styles = StyleSheet.create({
     textShadowRadius: 1,
   },
   userEmail: {
-    color: '#666',
     fontSize: 14,
   },
   userInfo: {
     marginLeft: 12,
   },
   userName: {
-    color: '#333',
     fontSize: 16,
     fontWeight: '500',
   },
   usersList: {
-    backgroundColor: 'white',
     borderRadius: 12,
     elevation: 1,
     marginHorizontal: 16,
@@ -252,7 +248,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   usersTitle: {
-    color: '#333',
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,

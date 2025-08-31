@@ -1,12 +1,12 @@
 import { registerRootComponent } from 'expo';
-import { Ionicons } from '@expo/vector-icons';
-import { onAuthStateChanged } from 'firebase/auth';
-import { View, ActivityIndicator } from 'react-native';
-import { MenuProvider } from 'react-native-popup-menu';
 import React, { useState, useEffect, useContext } from 'react';
+import { View, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { onAuthStateChanged } from 'firebase/auth';
+import { MenuProvider } from 'react-native-popup-menu';
 
 import Chat from './screens/Chat';
 import Help from './screens/Help';
@@ -18,39 +18,56 @@ import Group from './screens/Group';
 import SignUp from './screens/SignUp';
 import Profile from './screens/Profile';
 import Account from './screens/Account';
-import { auth } from './config/firebase';
 import Settings from './screens/Settings';
 import ChatInfo from './screens/ChatInfo';
-import { colors } from './config/constants';
+
 import ChatMenu from './components/ChatMenu';
 import ChatHeader from './components/ChatHeader';
-import { UnreadMessagesContext, UnreadMessagesProvider } from './contexts/UnreadMessagesContext';
+
+import { colors } from './config/constants';
+import { auth } from './config/firebase';
+
 import {
   AuthenticatedUserContext,
   AuthenticatedUserProvider,
 } from './contexts/AuthenticatedUserContext';
+
+import {
+  UnreadMessagesContext,
+  UnreadMessagesProvider,
+} from './contexts/UnreadMessagesContext';
+
+import { ThemeProvider, useThemeMode } from './contexts/ThemeContext'; // <-- THEME
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TabNavigator = () => {
   const { unreadCount, setUnreadCount } = useContext(UnreadMessagesContext);
+  const { palette } = useThemeMode(); // use theme colors for tab bar if desired
 
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName = route.name === 'Chats' ? 'chatbubbles' : 'settings';
-          iconName += focused ? '' : '-outline';
-          return <Ionicons name={iconName} size={size} color={color} />;
+          let icon = route.name === 'Chats' ? 'chatbubbles' : 'settings';
+          icon += focused ? '' : '-outline';
+          return <Ionicons name={icon} size={size} color={color} />;
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: 'gray',
         headerShown: true,
         presentation: 'modal',
+        tabBarStyle: { backgroundColor: palette.card },
+        headerStyle: { backgroundColor: palette.card },
+        headerTintColor: palette.text,
+        headerTitleStyle: { color: palette.text },
       })}
     >
-      <Tab.Screen name="Chats" options={{ tabBarBadge: unreadCount > 0 ? unreadCount : null }}>
+      <Tab.Screen
+        name="Chats"
+        options={{ tabBarBadge: unreadCount > 0 ? unreadCount : null }}
+      >
         {() => <Chats setUnreadCount={setUnreadCount} />}
       </Tab.Screen>
       <Tab.Screen name="Settings" component={Settings} />
@@ -58,30 +75,41 @@ const TabNavigator = () => {
   );
 };
 
-const MainStack = () => (
-  <Stack.Navigator>
-    <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
-    <Stack.Screen
-      name="Chat"
-      component={Chat}
-      options={({ route }) => ({
-        headerTitle: () => <ChatHeader chatName={route.params.chatName} chatId={route.params.id} />,
-        headerRight: () => (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <ChatMenu chatName={route.params.chatName} chatId={route.params.id} />
-          </View>
-        ),
-      })}
-    />
-    <Stack.Screen name="Users" component={Users} options={{ title: 'Select User' }} />
-    <Stack.Screen name="Profile" component={Profile} />
-    <Stack.Screen name="About" component={About} />
-    <Stack.Screen name="Help" component={Help} />
-    <Stack.Screen name="Account" component={Account} />
-    <Stack.Screen name="Group" component={Group} options={{ title: 'New Group' }} />
-    <Stack.Screen name="ChatInfo" component={ChatInfo} options={{ title: 'Chat Information' }} />
-  </Stack.Navigator>
-);
+const MainStack = () => {
+  const { palette } = useThemeMode();
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: { backgroundColor: palette.card },
+        headerTintColor: palette.text,
+        headerTitleStyle: { color: palette.text },
+      }}
+    >
+      <Stack.Screen name="Home" component={TabNavigator} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="Chat"
+        component={Chat}
+        options={({ route }) => ({
+          headerTitle: () => (
+            <ChatHeader chatName={route.params.chatName} chatId={route.params.id} />
+          ),
+          headerRight: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <ChatMenu chatName={route.params.chatName} chatId={route.params.id} />
+            </View>
+          ),
+        })}
+      />
+      <Stack.Screen name="Users" component={Users} options={{ title: 'Select User' }} />
+      <Stack.Screen name="Profile" component={Profile} />
+      <Stack.Screen name="About" component={About} />
+      <Stack.Screen name="Help" component={Help} />
+      <Stack.Screen name="Account" component={Account} />
+      <Stack.Screen name="Group" component={Group} options={{ title: 'New Group' }} />
+      <Stack.Screen name="ChatInfo" component={ChatInfo} options={{ title: 'Chat Information' }} />
+    </Stack.Navigator>
+  );
+};
 
 const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -93,14 +121,14 @@ const AuthStack = () => (
 const RootNavigator = () => {
   const { user, setUser } = useContext(AuthenticatedUserContext);
   const [isLoading, setIsLoading] = useState(true);
+  const { navTheme } = useThemeMode(); // <-- inject theme into NavigationContainer
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (authenticatedUser) => {
+    const unsub = onAuthStateChanged(auth, async (authenticatedUser) => {
       setUser(authenticatedUser || null);
       setIsLoading(false);
     });
-
-    return unsubscribeAuth;
+    return unsub;
   }, [setUser]);
 
   if (isLoading) {
@@ -111,17 +139,23 @@ const RootNavigator = () => {
     );
   }
 
-  return <NavigationContainer>{user ? <MainStack /> : <AuthStack />}</NavigationContainer>;
+  return (
+    <NavigationContainer theme={navTheme}>
+      {user ? <MainStack /> : <AuthStack />}
+    </NavigationContainer>
+  );
 };
 
 const App = () => (
-    <MenuProvider>
-      <AuthenticatedUserProvider>
-        <UnreadMessagesProvider>
+  <MenuProvider>
+    <AuthenticatedUserProvider>
+      <UnreadMessagesProvider>
+        <ThemeProvider>
           <RootNavigator />
-        </UnreadMessagesProvider>
-      </AuthenticatedUserProvider>
-    </MenuProvider>
-  );
+        </ThemeProvider>
+      </UnreadMessagesProvider>
+    </AuthenticatedUserProvider>
+  </MenuProvider>
+);
 
-  export default registerRootComponent(App);
+export default registerRootComponent(App);

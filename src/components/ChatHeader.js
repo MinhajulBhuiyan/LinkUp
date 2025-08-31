@@ -2,11 +2,11 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { useNavigation } from '@react-navigation/native';
 import { Text, View, StyleSheet, TouchableOpacity } from 'react-native';
-
-import { colors } from '../config/constants';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 const ChatHeader = ({ chatName, chatId }) => {
   const navigation = useNavigation();
+  const { palette } = useThemeMode();
 
   // Generate consistent color based on chat name
   const generateAvatarColor = (name) => {
@@ -16,8 +16,8 @@ const ChatHeader = ({ chatName, chatId }) => {
     }, 0);
     
     const hue = Math.abs(hash) % 360;
-    const saturation = 75 + (Math.abs(hash) % 15); // 75-90%
-    const lightness = 50 + (Math.abs(hash) % 15); // 50-65%
+    const saturation = 75 + (Math.abs(hash) % 15);
+    const lightness = palette.mode === 'dark' ? 40 + (Math.abs(hash) % 15) : 50 + (Math.abs(hash) % 15);
     
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   };
@@ -30,38 +30,35 @@ const ChatHeader = ({ chatName, chatId }) => {
       onPress={() => navigation.navigate('ChatInfo', { chatId, chatName })}
       activeOpacity={0.7}
     >
-      <TouchableOpacity
-        style={[styles.avatarContainer, { backgroundColor: avatarColor }]}
-        onPress={() => navigation.navigate('ChatInfo', { chatId, chatName })}
-        activeOpacity={0.8}
-      >
+      <View style={[styles.avatarContainer, { backgroundColor: avatarColor }]}>
         <View style={styles.avatarInner}>
           <Text style={styles.avatarLabel}>
             {chatName.split(' ').reduce((prev, current) => `${prev}${current[0]}`, '')}
           </Text>
         </View>
-      </TouchableOpacity>
+      </View>
 
-      <Text style={styles.chatName}>{chatName}</Text>
+      <Text style={[styles.chatName, { color: palette.text }]} numberOfLines={1} ellipsizeMode="tail">
+        {chatName}
+      </Text>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
   avatarContainer: {
-    marginLeft: -30,
-    marginRight: 10,
+    marginRight: 12,
     borderRadius: 20,
     height: 40,
     width: 40,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 2,
     },
     shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 4,
+    shadowRadius: 4,
+    elevation: 3,
   },
   avatarInner: {
     alignItems: 'center',
@@ -81,14 +78,14 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   chatName: {
-    color: 'black',
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    maxWidth: 200,
   },
   container: {
     alignItems: 'center',
     flexDirection: 'row',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
 });
 
