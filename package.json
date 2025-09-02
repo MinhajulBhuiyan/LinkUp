@@ -60,7 +60,10 @@
     "react-native-uuid": "^2.0.3",
     "react-native-web": "^0.20.0",
     "react-native-webview": "13.13.5",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "expo-linear-gradient": "~14.1.5",
+    "expo-font": "~13.3.2",
+    "react-native-get-random-values": "~1.11.0"
   },
   "devDependencies": {
     "@babel/core": "^7.28.0",

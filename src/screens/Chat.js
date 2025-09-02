@@ -16,7 +16,10 @@ import {
   ActivityIndicator,
   Image,
   useColorScheme,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../config/constants';
 import { auth, database } from '../config/firebase';
@@ -28,9 +31,20 @@ const getAvatarSeed = (name, email) => {
   return encodeURIComponent(base.toLowerCase());
 };
 
+const getAvatarColor = (name, email) => {
+  const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'];
+  const str = (name || email || '').toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+};
+
 const getAvatarUrl = (name, email, size = 96) => {
   const seed = getAvatarSeed(name, email);
-  return `https://api.dicebear.com/8.x/initials/png?seed=${seed}&radius=50&size=${size}&backgroundType=gradientLinear`;
+  const bgColor = getAvatarColor(name, email).replace('#', '');
+  return `https://api.dicebear.com/8.x/initials/png?seed=${seed}&radius=50&size=${size}&backgroundColor=${bgColor}&textColor=ffffff`;
 };
 
 const RenderLoadingUpload = ({ palette }) => (
@@ -51,30 +65,50 @@ const RenderBubble = (props) => {
     <Bubble
       {...props}
       wrapperStyle={{
-        right: { 
+        right: {
           backgroundColor: palette.primary,
-          marginVertical: 2,
+          marginVertical: 3,
+          borderRadius: 20,
+          paddingHorizontal: 6,
+          elevation: 2,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.2,
+          shadowRadius: 2,
         },
-        left: { 
-          backgroundColor: palette.mode === 'dark' ? '#3d3d3dff' : '#25D366',
-          marginVertical: 2,
+        left: {
+          backgroundColor: palette.mode === 'dark' ? '#404040' : '#25D366',
+          marginVertical: 3,
+          borderRadius: 20,
+          paddingHorizontal: 6,
+          elevation: 1,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.1,
+          shadowRadius: 1,
         },
       }}
       textStyle={{
-        right: { color: '#FFFFFF' },
-        left: { 
-          color: palette.mode === 'dark' ? '#FFFFFF' : '#000000'
+        right: {
+          color: '#FFFFFF',
+          fontSize: 16,
+          fontWeight: '500',
+        },
+        left: {
+          color: palette.mode === 'dark' ? '#FFFFFF' : '#333333',
+          fontSize: 16,
+          fontWeight: '500',
         },
       }}
       timeTextStyle={{
-        right: { color: '#FFFFFFAA' },
-        left: { color: palette.subtitle },
+        right: { color: '#333333', fontSize: 12 },
+        left: { color: '#333333', fontSize: 12 },
       }}
-      // Enhanced username styling for better visibility
       usernameStyle={{
-        color: palette.mode === 'dark' ? '#E0E0E0' : '#333333', // Darker for light mode
-        fontSize: 12,
-        marginBottom: 3,
+        color: palette.mode === 'dark' ? '#E0E0E0' : '#333333',
+        fontSize: 13,
+        fontWeight: '600',
+        marginBottom: 4,
       }}
     />
   );
@@ -91,24 +125,31 @@ const RenderAttach = (props) => {
 
 const RenderInputToolbar = (props) => {
   const { palette } = useThemeMode();
+  const insets = useSafeAreaInsets();
   const handleEmojiPanel = props.handleEmojiPanel;
-  
+  const handleImagePicker = props.handleImagePicker;
+
   const RenderActions = () => (
-    <TouchableOpacity style={styles.emojiIcon} onPress={handleEmojiPanel}>
-      <Ionicons name="happy-outline" size={28} color={palette.teal} />
-    </TouchableOpacity>
+    <View style={styles.actionsContainer}>
+      <TouchableOpacity style={styles.actionButton} onPress={handleEmojiPanel}>
+        <Ionicons name="happy-outline" size={24} color={palette.teal} />
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.actionButton} onPress={handleImagePicker}>
+        <Ionicons name="image-outline" size={24} color={palette.teal} />
+      </TouchableOpacity>
+    </View>
   );
 
   return (
     <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 4,
-        backgroundColor: palette.background,
-        borderTopColor: palette.border,
-        borderTopWidth: StyleSheet.hairlineWidth,
-      }}
+      style={[
+        styles.inputToolbarContainer,
+        {
+          backgroundColor: palette.background,
+          borderTopColor: palette.border,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+        }
+      ]}
     >
       <InputToolbar
         {...props}
@@ -120,19 +161,25 @@ const RenderInputToolbar = (props) => {
             borderColor: palette.border,
           }
         ]}
+        primaryStyle={{ alignItems: 'center' }}
         placeholderTextColor={palette.subtitle}
+        renderSend={() => null}
       />
-      <Send {...props}>
-        <View style={[
+      <TouchableOpacity
+        style={[
           styles.sendIconContainer,
           {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
+            backgroundColor: palette.teal,
           }
-        ]}>
-          <Ionicons name="send" size={22} color={palette.teal} />
-        </View>
-      </Send>
+        ]}
+        onPress={() => {
+          if (props.text && props.text.trim().length > 0) {
+            props.onSend({ text: props.text.trim() }, true);
+          }
+        }}
+      >
+        <Ionicons name="send" size={20} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -161,6 +208,7 @@ const RenderAvatar = (props) => {
 
 function Chat({ route }) {
   const { palette } = useThemeMode();
+  const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState([]);
   const [modal, setModal] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -281,7 +329,7 @@ function Chat({ route }) {
 
     uploadTask.on(
       'state_changed',
-      () => {},
+      () => { },
       (error) => {
         console.log(error);
         setUploading(false);
@@ -319,7 +367,11 @@ function Chat({ route }) {
   }, []);
 
   return (
-    <>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: palette.background }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : -164}
+    >
       {uploading && <RenderLoadingUpload palette={palette} />}
       <GiftedChat
         messages={messages}
@@ -327,13 +379,23 @@ function Chat({ route }) {
         showUserAvatar={true}
         renderAvatar={(props) => <RenderAvatar {...props} />}
         onSend={(messagesArr) => onSend(messagesArr)}
-        imageStyle={{ height: 212, width: 212, borderRadius: 12 }}
-        messagesContainerStyle={{ backgroundColor: palette.background }}
-        textInputStyle={{ 
-          backgroundColor: palette.card,
+        imageStyle={{ height: 200, width: 200, borderRadius: 16, margin: 4 }}
+        messagesContainerStyle={{
+          backgroundColor: palette.background,
+          paddingHorizontal: 8,
+          paddingBottom: insets.bottom > 0 ? 0 : 10,
+        }}
+        textInputStyle={{
+          backgroundColor: 'transparent',
           color: palette.text,
           borderRadius: 20,
-          paddingHorizontal: 12,
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          fontSize: 16,
+          marginHorizontal: 4,
+          marginVertical: 4,
+          maxHeight: 100,
+          minHeight: 40,
         }}
         user={{
           _id: auth?.currentUser?.email,
@@ -341,18 +403,21 @@ function Chat({ route }) {
           avatar: getAvatarUrl(auth?.currentUser?.displayName, auth?.currentUser?.email, 96),
         }}
         renderBubble={(props) => <RenderBubble {...props} />}
-        renderSend={(props) => <RenderAttach {...props} onPress={pickImage} />}
-        renderUsernameOnMessage
+        renderUsernameOnMessage={false}
         renderAvatarOnTop
-        renderInputToolbar={(props) => <RenderInputToolbar {...props} handleEmojiPanel={handleEmojiPanel} />}
-        minInputToolbarHeight={56}
-        scrollToBottom
+        renderInputToolbar={(props) => <RenderInputToolbar {...props} handleEmojiPanel={handleEmojiPanel} handleImagePicker={pickImage} />}
+        renderSend={() => null}
+        minInputToolbarHeight={50}
+        scrollToBottom={true}
+        alwaysShowSend={false}
+        sendLabel=""
+        disableComposer={false}
         onPressActionButton={handleEmojiPanel}
         scrollToBottomStyle={[
           styles.scrollToBottomStyle,
           {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
+            backgroundColor: palette.primary,
+            bottom: insets.bottom + 80,
           }
         ]}
         renderLoading={() => <RenderLoading palette={palette} />}
@@ -361,7 +426,13 @@ function Chat({ route }) {
         dateFormat="ll"
         listViewProps={{
           style: { backgroundColor: palette.background },
+          keyboardShouldPersistTaps: 'handled',
         }}
+        maxComposerHeight={100}
+        multiline={true}
+        infiniteScroll={true}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={insets.bottom}
       />
 
       {modal && (
@@ -370,7 +441,9 @@ function Chat({ route }) {
           modalStyle={[
             styles.emojiModal,
             {
-              backgroundColor: palette.card,
+              backgroundColor: palette.mode === 'dark' ? '#2C2C2C' : '#FFFFFF',  // Change this line
+              borderRadius: 20,
+              overflow: 'hidden',
             }
           ]}
           containerStyle={styles.emojiContainerModal}
@@ -380,9 +453,20 @@ function Chat({ route }) {
               backgroundColor: palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
             }
           ]}
-          columns={5}
-          emojiSize={66}
+          columns={8}
+          emojiSize={32}
           activeShortcutColor={palette.primary}
+          shortcutColor={palette.mode === 'dark' ? '#FFFFFF' : '#666666'}  
+          headerStyle={{                    
+            backgroundColor: palette.mode === 'dark' ? '#2C2C2C' : '#FFFFFF',
+            borderBottomWidth: 1,
+            borderBottomColor: palette.mode === 'dark' ? '#404040' : '#E0E0E0',
+            paddingVertical: 12,
+          }}
+          categoryLabelStyle={{             
+            color: palette.mode === 'dark' ? '#FFFFFF' : '#000000',
+            fontWeight: '600',
+          }}
           onEmojiSelected={(emoji) => {
             const meEmail = auth?.currentUser?.email;
             const meName = auth?.currentUser?.displayName;
@@ -404,7 +488,7 @@ function Chat({ route }) {
           }}
         />
       )}
-    </>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -423,31 +507,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   emojiContainerModal: {
-    height: 348,
+    height: 400,
     width: '100%',
   },
-  emojiIcon: {
-    borderRadius: 16,
-    height: 32,
-    width: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-    marginRight: 4,
-  },
   emojiModal: {
-    borderRadius: 16,
+    borderRadius: 20,
     marginHorizontal: 16,
     marginBottom: 16,
+    maxHeight: 400,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  actionButton: {
+    padding: 8,
+    marginHorizontal: 2,
+    borderRadius: 20,
+  },
+  inputToolbarContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingTop: 2,
+    paddingHorizontal: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   inputToolbar: {
     alignItems: 'center',
-    borderRadius: 22,
+    borderRadius: 25,
     flex: 1,
     flexDirection: 'row',
-    marginHorizontal: 8,
-    paddingHorizontal: 8,
+    marginRight: 8,
+    paddingHorizontal: 6,
     paddingVertical: 6,
+    borderWidth: 1,
   },
   loadingContainer: {
     alignItems: 'center',
@@ -465,20 +559,32 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   scrollToBottomStyle: {
-    borderRadius: 28,
-    bottom: 12,
-    height: 56,
+    borderRadius: 25,
+    bottom: 20,
+    height: 50,
     position: 'absolute',
-    right: 12,
-    width: 56,
+    right: 20,
+    width: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
   sendIconContainer: {
     alignItems: 'center',
-    borderRadius: 22,
-    height: 44,
+    borderRadius: 25,
+    height: 50,
     justifyContent: 'center',
-    marginRight: 8,
-    width: 44,
+    width: 50,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
+    marginBottom: 4,
   },
   avatarWrap: {
     width: AVATAR,

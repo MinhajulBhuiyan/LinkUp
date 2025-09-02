@@ -3,6 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   doc,
   where,
@@ -25,6 +26,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   SafeAreaView,
+  TextInput,
+  FlatList,
 } from 'react-native';
 
 import { colors } from '../config/constants';
@@ -35,10 +38,14 @@ import { useThemeMode } from '../contexts/ThemeContext';
 const Chats = ({ setUnreadCount }) => {
   const navigation = useNavigation();
   const { palette } = useThemeMode();
+  const insets = useSafeAreaInsets();
   const [chats, setChats] = useState([]);
+  const [filteredChats, setFilteredChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState([]);
   const [newMessages, setNewMessages] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
 
   useEffect(() => {
     if (Platform.OS === 'android') {
@@ -78,7 +85,14 @@ const Chats = ({ setUnreadCount }) => {
         orderBy('lastUpdated', 'desc')
       );
       unsubscribe = onSnapshot(q, (snapshot) => {
-        setChats(snapshot.docs);
+        const allChats = snapshot.docs;
+        // Filter chats that have messages
+        const chatsWithMessages = allChats.filter(chat => {
+          const chatData = chat.data();
+          return chatData.messages && chatData.messages.length > 0;
+        });
+        setChats(chatsWithMessages);
+        setFilteredChats(chatsWithMessages);
         setLoading(false);
       });
       loadNewMessages();
@@ -132,6 +146,27 @@ const Chats = ({ setUnreadCount }) => {
 
   const deSelectItems = useCallback(() => setSelectedItems([]), []);
 
+  const handleSearch = useCallback((text) => {
+    setSearchQuery(text);
+    if (text.trim() === '') {
+      setFilteredChats(chats);
+    } else {
+      const filtered = chats.filter(chat => {
+        const chatName = getChatName(chat).toLowerCase();
+        return chatName.includes(text.toLowerCase());
+      });
+      setFilteredChats(filtered);
+    }
+  }, [chats, getChatName]);
+
+  const toggleSearch = () => {
+    setIsSearchVisible(!isSearchVisible);
+    if (isSearchVisible) {
+      setSearchQuery('');
+      setFilteredChats(chats);
+    }
+  };
+
   const handleFabPress = () => navigation.navigate('Users');
 
   const handleDeleteChat = useCallback(() => {
@@ -177,20 +212,23 @@ const Chats = ({ setUnreadCount }) => {
       headerStyle: { backgroundColor: palette.card },
       headerTitle: 'Chats',
       headerTitleStyle: { color: palette.text },
-      headerRight:
-        selectedItems.length > 0
-          ? () => (
-              <TouchableOpacity style={styles.headerIcon} onPress={handleDeleteChat}>
-                <Ionicons name="trash-outline" size={22} color={palette.teal} />
-              </TouchableOpacity>
-            )
-          : undefined,
+      headerRight: selectedItems.length > 0
+        ? () => (
+            <TouchableOpacity style={styles.headerIcon} onPress={handleDeleteChat}>
+              <Ionicons name="trash-outline" size={22} color={palette.teal} />
+            </TouchableOpacity>
+          )
+        : () => (
+            <TouchableOpacity style={styles.headerIcon} onPress={toggleSearch}>
+              <Ionicons name="search-outline" size={22} color={palette.text} />
+            </TouchableOpacity>
+          ),
       headerLeft:
         selectedItems.length > 0
           ? () => <Text style={[styles.itemCount, { color: palette.teal }]}>{selectedItems.length}</Text>
           : undefined,
     });
-  }, [selectedItems, navigation, handleDeleteChat, palette]);
+  }, [selectedItems, navigation, handleDeleteChat, palette, toggleSearch]);
 
   const getSubtitle = useCallback((chat) => {
     const { messages } = chat.data();
@@ -214,61 +252,86 @@ const Chats = ({ setUnreadCount }) => {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]}>
+      {isSearchVisible && (
+        <View style={[styles.searchContainer, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <Ionicons name="search-outline" size={20} color={palette.subtitle} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: palette.text }]}
+            placeholder="Search chats..."
+            placeholderTextColor={palette.subtitle}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')}>
+              <Ionicons name="close-circle" size={20} color={palette.subtitle} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+      
       <Pressable style={styles.container} onPress={deSelectItems}>
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color={palette.teal} />
           </View>
         ) : (
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
+          <>
             <View style={styles.sectionHeader}>
               <Ionicons name="chatbubble-ellipses-outline" size={18} color={palette.teal} />
               <Text style={[styles.sectionTitle, { color: palette.subtitle }]}>Conversations</Text>
             </View>
 
-            {chats.length === 0 ? (
+            {filteredChats.length === 0 ? (
               <View style={styles.blankContainer}>
-                <Ionicons name="chatbox-outline" size={22} color={palette.subtitle} />
-                <Text style={[styles.textMuted, { color: palette.subtitle }]}>No conversations yet</Text>
+                <Ionicons name={searchQuery ? "search-outline" : "chatbox-outline"} size={48} color={palette.subtitle} />
+                <Text style={[styles.textMuted, { color: palette.subtitle }]}>
+                  {searchQuery ? 'No chats found' : 'No conversations yet'}
+                </Text>
+                {!searchQuery && (
+                  <Text style={[styles.textMutedSub, { color: palette.subtitle }]}>
+                    Tap the + button to start a new chat
+                  </Text>
+                )}
               </View>
             ) : (
-              chats.map((chat) => (
-                <View
-                  key={chat.id}
-                  style={[
-                    styles.card, 
-                    { backgroundColor: palette.card },
-                    getSelected(chat) && { 
-                      backgroundColor: palette.mode === 'dark' ? '#2a3b4d' : '#eaf7f7',
-                      borderWidth: 1,
-                      borderColor: palette.teal
-                    }
-                  ]}
-                >
-                  <ContactRow
-                    name={getChatName(chat)}
-                    subtitle={getSubtitle(chat)}
-                    subtitle2={getSubtitle2(chat)}
-                    onPress={() => handleChatPress(chat)}
-                    onLongPress={() => handleChatLongPress(chat)}
-                    selected={getSelected(chat)}
-                    showForwardIcon={false}
-                    newMessageCount={newMessages[chat.id] || 0}
-                  />
-                </View>
-              ))
+              <FlatList
+                data={filteredChats}
+                keyExtractor={(item) => item.id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[
+                  styles.listContainer,
+                  { paddingBottom: Math.max(100, insets.bottom + 90) } // Dynamic padding based on safe area
+                ]}
+                renderItem={({ item: chat }) => (
+                  <View
+                    style={[
+                      styles.card, 
+                      { backgroundColor: palette.card },
+                      getSelected(chat) && { 
+                        backgroundColor: palette.mode === 'dark' ? '#2a3b4d' : '#eaf7f7',
+                        borderWidth: 1,
+                        borderColor: palette.teal
+                      }
+                    ]}
+                  >
+                    <ContactRow
+                      name={getChatName(chat)}
+                      subtitle={getSubtitle(chat)}
+                      subtitle2={getSubtitle2(chat)}
+                      onPress={() => handleChatPress(chat)}
+                      onLongPress={() => handleChatLongPress(chat)}
+                      selected={getSelected(chat)}
+                      showForwardIcon={false}
+                      newMessageCount={newMessages[chat.id] || 0}
+                    />
+                  </View>
+                )}
+              />
             )}
-          </ScrollView>
+          </>
         )}
-
-        <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.9}>
-          <View style={[styles.fabContainer, { backgroundColor: palette.teal }]}>
-            <Ionicons name="person-add-outline" size={22} color="#fff" />
-          </View>
-        </TouchableOpacity>
       </Pressable>
     </SafeAreaView>
   );
@@ -277,75 +340,84 @@ const Chats = ({ setUnreadCount }) => {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
+    paddingBottom: 0, // Remove extra padding since we handle it in list
   },
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 28,
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 0,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 10,
-    paddingHorizontal: 4,
+    marginBottom: 12,
+    marginTop: 8,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.2,
   },
+  listContainer: {
+    paddingHorizontal: 12,
+    paddingBottom: 100, // Extra padding to avoid tab bar overlap
+  },
   card: {
-    borderRadius: 12,
-    marginVertical: 6,
-    padding: 2,
+    borderRadius: 16,
+    marginVertical: 4,
+    marginHorizontal: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    elevation: 2,
   },
   blankContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 36,
-    gap: 8,
+    paddingVertical: 60,
+    gap: 12,
   },
   textMuted: {
-    fontSize: 14,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-  },
-  fabContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  itemCount: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '500',
-    left: 100,
+  },
+  textMutedSub: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 4,
   },
   loadingWrap: {
-    flex: 1,
     alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
   },
   headerIcon: {
-    right: 12,
+    padding: 8,
+    marginRight: 4,
+  },
+  itemCount: {
+    fontSize: 18,
+    fontWeight: '600',
+    paddingLeft: 16,
   },
 });
 

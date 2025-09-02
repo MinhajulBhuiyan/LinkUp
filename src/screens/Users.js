@@ -1,6 +1,17 @@
 import { useNavigation } from '@react-navigation/native';
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  SafeAreaView, 
+  TextInput, 
+  TouchableOpacity, 
+  FlatList,
+  Modal
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { doc, query, where, setDoc, orderBy, collection, onSnapshot } from 'firebase/firestore';
 
 import Cell from '../components/Cell';
@@ -13,13 +24,22 @@ const Users = () => {
   const navigation = useNavigation();
   const { palette } = useThemeMode();
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
   const [existingChats, setExistingChats] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
 
   useEffect(() => {
     const collectionUserRef = collection(database, 'users');
     const q = query(collectionUserRef, orderBy('name', 'asc'));
     const unsubscribeUsers = onSnapshot(q, (snapshot) => {
-      setUsers(snapshot.docs);
+      const userDocs = snapshot.docs;
+      setUsers(userDocs);
+      setFilteredUsers(userDocs);
     });
 
     const collectionChatsRef = collection(database, 'chats');
@@ -46,6 +66,44 @@ const Users = () => {
     };
   }, []);
 
+  // Search functionality
+  const handleSearch = useCallback((text) => {
+    setSearchQuery(text);
+    if (text.trim() === '') {
+      setFilteredUsers(users);
+    } else {
+      const filtered = users.filter(user => {
+        const userData = user.data();
+        const name = userData.name?.toLowerCase() || '';
+        const email = userData.email?.toLowerCase() || '';
+        return name.includes(text.toLowerCase()) || email.includes(text.toLowerCase());
+      });
+      setFilteredUsers(filtered);
+    }
+  }, [users]);
+
+  const toggleSearch = () => {
+    setIsSearchVisible(!isSearchVisible);
+    if (isSearchVisible) {
+      setSearchQuery('');
+      setFilteredUsers(users);
+    }
+  };
+
+  // Update header with search option
+  useEffect(() => {
+    navigation.setOptions({
+      headerStyle: { backgroundColor: palette.card },
+      headerTintColor: palette.text,
+      headerTitleStyle: { color: palette.text },
+      headerRight: () => (
+        <TouchableOpacity style={styles.headerIcon} onPress={toggleSearch}>
+          <Ionicons name="search-outline" size={22} color={palette.text} />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, palette, toggleSearch]);
+
   function handleName(user) {
     const { name, email } = user.data();
     if (name) {
@@ -64,7 +122,7 @@ const Users = () => {
   }, [navigation]);
 
   const handleNewUser = useCallback(() => {
-    alert('Add new user feature coming soon');
+    setShowAddUserModal(true);
   }, []);
 
   const handleNavigate = useCallback(
@@ -126,84 +184,470 @@ const Users = () => {
     [existingChats, navigation]
   );
 
+  // Modal functions
+  const closeAddUserModal = () => {
+    setShowAddUserModal(false);
+    setNewUserName('');
+    setNewUserEmail('');
+    setIsCreatingUser(false);
+  };
+
+  const handleAddUser = async () => {
+    if (!newUserName.trim() || !newUserEmail.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUserEmail)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    setIsCreatingUser(true);
+
+    try {
+      // Create a new user document in Firestore
+      const newUserRef = doc(database, 'users', newUserEmail);
+      await setDoc(newUserRef, {
+        name: newUserName.trim(),
+        email: newUserEmail.trim(),
+        createdAt: Date.now(),
+      });
+
+      // Create a new chat with this user
+      const newChatRef = doc(collection(database, 'chats'));
+      await setDoc(newChatRef, {
+        lastUpdated: Date.now(),
+        groupName: '',
+        users: [
+          {
+            email: auth?.currentUser?.email,
+            name: auth?.currentUser?.displayName,
+            deletedFromChat: false,
+          },
+          { 
+            email: newUserEmail.trim(), 
+            name: newUserName.trim(), 
+            deletedFromChat: false 
+          },
+        ],
+        lastAccess: [
+          { email: auth?.currentUser?.email, date: Date.now() },
+          { email: newUserEmail.trim(), date: '' },
+        ],
+        messages: [],
+      });
+
+      closeAddUserModal();
+      
+      // Navigate to the new chat
+      navigation.navigate('Chat', { 
+        id: newChatRef.id, 
+        chatName: newUserName.trim() 
+      });
+      
+    } catch (error) {
+      console.error('Error creating user:', error);
+      alert('Failed to add user. Please try again.');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
-      <Cell
-  title="New group"
-  icon="people"
-  tintColor={palette.teal}
-  iconColor={palette.primary}  // Changed from palette.text
-  onPress={handleNewGroup}
-  style={[styles.cell, { backgroundColor: palette.card }]}
-/>
-<Cell
-  title="Add new user"
-  icon="person-add"
-  tintColor={palette.teal}
-  iconColor={palette.primary}  // Changed from palette.text
-  onPress={handleNewUser}
-  style={[styles.cell, { backgroundColor: palette.card, marginBottom: 16 }]}
-/>
-
-      {users.length === 0 ? (
-        <View style={styles.blankContainer}>
-          <Text style={[styles.textMuted, { color: palette.subtitle }]}>
-            No registered users yet
-          </Text>
+      {/* Search Bar */}
+      {isSearchVisible && (
+        <View style={[styles.searchContainer, { backgroundColor: palette.card, borderColor: palette.border }]}>
+          <Ionicons name="search-outline" size={20} color={palette.subtitle} style={styles.searchIcon} />
+          <TextInput
+            style={[styles.searchInput, { color: palette.text }]}
+            placeholder="Search users..."
+            placeholderTextColor={palette.subtitle}
+            value={searchQuery}
+            onChangeText={handleSearch}
+            autoFocus
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearch('')}>
+              <Ionicons name="close-circle" size={20} color={palette.subtitle} />
+            </TouchableOpacity>
+          )}
         </View>
-      ) : (
-        <ScrollView>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: palette.text }]}>
-              Registered users
-            </Text>
-          </View>
-          {users.map((user) => (
-            <React.Fragment key={user.id}>
-              <ContactRow
-                name={handleName(user)}
-                subtitle={handleSubtitle(user)}
-                onPress={() => handleNavigate(user)}
-                showForwardIcon={false}
-                style={{ backgroundColor: palette.card }}
-              />
-            </React.Fragment>
-          ))}
-        </ScrollView>
       )}
+
+      {/* Header Actions */}
+      <View style={styles.actionsSection}>
+        <TouchableOpacity 
+          style={[styles.actionCard, { backgroundColor: palette.card }]} 
+          onPress={handleNewGroup}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: palette.teal + '20' }]}>
+            <Ionicons name="people" size={24} color={palette.teal} />
+          </View>
+          <Text style={[styles.actionTitle, { color: palette.text }]}>New Group</Text>
+          <Text style={[styles.actionSubtitle, { color: palette.subtitle }]}>Create a group chat</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={[styles.actionCard, { backgroundColor: palette.card }]} 
+          onPress={handleNewUser}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: palette.primary + '20' }]}>
+            <Ionicons name="person-add" size={24} color={palette.primary} />
+          </View>
+          <Text style={[styles.actionTitle, { color: palette.text }]}>Add User</Text>
+          <Text style={[styles.actionSubtitle, { color: palette.subtitle }]}>Invite someone new</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Users List */}
+      <View style={styles.usersSection}>
+        <Text style={[styles.sectionTitle, { color: palette.text }]}>
+          {searchQuery ? `Search Results (${filteredUsers.length})` : 'Registered Users'}
+        </Text>
+
+        {filteredUsers.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons 
+              name={searchQuery ? "search-outline" : "people-outline"} 
+              size={48} 
+              color={palette.subtitle} 
+            />
+            <Text style={[styles.emptyText, { color: palette.subtitle }]}>
+              {searchQuery ? 'No users found' : 'No users available'}
+            </Text>
+            {searchQuery && (
+              <Text style={[styles.emptySubtext, { color: palette.subtitle }]}>
+                Try a different search term
+              </Text>
+            )}
+          </View>
+        ) : (
+          <FlatList
+            data={filteredUsers}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.usersList}
+            renderItem={({ item: user }) => (
+              <TouchableOpacity
+                style={[styles.userCard, { backgroundColor: palette.card }]}
+                onPress={() => handleNavigate(user)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.userAvatar, { backgroundColor: palette.primary }]}>
+                  <Text style={styles.userAvatarText}>
+                    {handleName(user).charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={[styles.userName, { color: palette.text }]}>
+                    {handleName(user)}
+                  </Text>
+                  <Text style={[styles.userSubtitle, { color: palette.subtitle }]}>
+                    {handleSubtitle(user)}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward-outline" size={18} color={palette.subtitle} />
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+
+      {/* Add User Modal */}
+      <Modal
+        visible={showAddUserModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={closeAddUserModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: palette.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: palette.text }]}>
+                Invite New User
+              </Text>
+              <TouchableOpacity onPress={closeAddUserModal}>
+                <Ionicons name="close" size={24} color={palette.text} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.modalDescription, { color: palette.subtitle }]}>
+              Add someone new to LinkUp by providing their details
+            </Text>
+
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: palette.text }]}>
+                Full Name *
+              </Text>
+              <TextInput
+                style={[styles.modalInput, { 
+                  backgroundColor: palette.background, 
+                  color: palette.text,
+                  borderColor: palette.border 
+                }]}
+                placeholder="Enter their full name"
+                placeholderTextColor={palette.subtitle}
+                value={newUserName}
+                onChangeText={setNewUserName}
+                autoCapitalize="words"
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: palette.text }]}>
+                Email Address *
+              </Text>
+              <TextInput
+                style={[styles.modalInput, { 
+                  backgroundColor: palette.background, 
+                  color: palette.text,
+                  borderColor: palette.border 
+                }]}
+                placeholder="Enter their email address"
+                placeholderTextColor={palette.subtitle}
+                value={newUserEmail}
+                onChangeText={setNewUserEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton, { borderColor: palette.border }]}
+                onPress={closeAddUserModal}
+              >
+                <Text style={[styles.cancelButtonText, { color: palette.subtitle }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.addButton, { 
+                  backgroundColor: palette.primary,
+                  opacity: (!newUserEmail.trim() || !newUserName.trim() || isCreatingUser) ? 0.5 : 1 
+                }]}
+                onPress={handleAddUser}
+                disabled={!newUserEmail.trim() || !newUserName.trim() || isCreatingUser}
+              >
+                <Text style={styles.addButtonText}>
+                  {isCreatingUser ? 'Adding...' : 'Add User'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  blankContainer: { 
-    alignItems: 'center', 
-    flex: 1, 
-    justifyContent: 'center',
-    paddingVertical: 40,
-  },
-  container: { 
+  container: {
     flex: 1,
   },
-  cell: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
-    marginTop: 8,
+    marginVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderRadius: 12,
-    borderWidth: 0,
+    borderWidth: 1,
   },
-  sectionHeader: {
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 0,
+  },
+  actionsSection: {
+    flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 8,
+    gap: 12,
+  },
+  actionCard: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  actionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 8,
   },
-  sectionTitle: {
+  actionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    opacity: 0.8,
+    marginBottom: 4,
   },
-  textMuted: {
+  actionSubtitle: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  usersSection: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  usersList: {
+    paddingBottom: 20,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginVertical: 4,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  userAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  userSubtitle: {
+    fontSize: 14,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  headerIcon: {
+    padding: 8,
+    marginRight: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalDescription: {
+    fontSize: 14,
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
+    borderWidth: 1,
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  addButton: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  addButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
 

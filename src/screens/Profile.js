@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Ionicons, 
   MaterialCommunityIcons 
@@ -16,10 +16,13 @@ import {
   TextInput,
   ActivityIndicator
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { updateProfile } from 'firebase/auth';
+import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 import Cell from '../components/Cell';
-import { auth, updateUserProfile } from '../config/firebase';
+import { auth, database } from '../config/firebase';
 import { colors } from '../config/constants';
 import { useThemeMode } from '../contexts/ThemeContext';
 
@@ -29,6 +32,63 @@ const Profile = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [userStats, setUserStats] = useState({
+    totalChats: 0,
+    messagesSent: 0
+  });
+
+  // Get avatar color consistent with chat system
+  const getAvatarColor = (name, email) => {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#FF9FF3', '#54A0FF', '#5F27CD'];
+    const str = (name || email || '').toLowerCase();
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  // Load user statistics
+  useEffect(() => {
+    const loadUserStats = async () => {
+      try {
+        const userEmail = auth?.currentUser?.email;
+        if (!userEmail) return;
+
+        // Count total chats
+        const chatsQuery = query(
+          collection(database, 'chats'),
+          where('users', 'array-contains', {
+            email: userEmail,
+            name: auth?.currentUser?.displayName,
+            deletedFromChat: false
+          })
+        );
+        const chatsSnapshot = await getDocs(chatsQuery);
+        
+        // Count total messages (simplified)
+        let totalMessages = 0;
+        chatsSnapshot.docs.forEach(doc => {
+          const chatData = doc.data();
+          if (chatData.messages) {
+            const userMessages = chatData.messages.filter(msg => 
+              msg.user && msg.user._id === userEmail
+            );
+            totalMessages += userMessages.length;
+          }
+        });
+
+        setUserStats({
+          totalChats: chatsSnapshot.size,
+          messagesSent: totalMessages
+        });
+      } catch (error) {
+        console.error('Error loading user stats:', error);
+      }
+    };
+
+    loadUserStats();
+  }, []);
 
   const pickImage = async () => {
     try {
@@ -68,11 +128,21 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      await updateUserProfile({ displayName: newName.trim() });
+      // Update Firebase Auth profile
+      await updateProfile(auth.currentUser, {
+        displayName: newName.trim()
+      });
+
+      // Update user document in Firestore
+      const userDocRef = doc(database, 'users', auth.currentUser.email);
+      await updateDoc(userDocRef, {
+        name: newName.trim()
+      });
+
       Alert.alert('Success', 'Name updated successfully!');
       setModalVisible(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update name');
+      Alert.alert('Error', 'Failed to update name: ' + error.message);
       console.error(error);
     } finally {
       setLoading(false);
@@ -92,6 +162,11 @@ const Profile = () => {
         .slice(0, 2)
     : auth?.currentUser?.email?.charAt(0).toUpperCase();
 
+  const avatarColor = getAvatarColor(
+    auth?.currentUser?.displayName, 
+    auth?.currentUser?.email
+  );
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: palette.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -109,7 +184,7 @@ const Profile = () => {
               style={[styles.cameraIcon, { backgroundColor: palette.teal }]} 
               onPress={pickImage}
             >
-              <Ionicons name="camera-outline" size={20} color="white" />
+              <Ionicons name="camera-outline" size={18} color="white" />
             </TouchableOpacity>
           </View>
           
@@ -157,34 +232,65 @@ const Profile = () => {
             titleStyle={{ color: palette.text }}
             subtitleStyle={{ color: palette.subtitle }}
           />
-
-          <Cell
-            title="Phone"
-            subtitle="+88 017 123 4567"
-            icon="call-outline"
-            iconColor={palette.text}
-            secondIcon="pencil-outline"
-            onPress={() => Alert.alert('Phone', 'This feature is coming soon.')}
-            style={[styles.cell, { backgroundColor: palette.card }]}
-            titleStyle={{ color: palette.text }}
-            subtitleStyle={{ color: palette.subtitle }}
-          />
         </View>
 
-        {/* Additional Info */}
-        <View style={[styles.additionalInfo, { backgroundColor: palette.card }]}>
-          <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="account-clock-outline" size={20} color={palette.subtitle} />
-            <Text style={[styles.infoText, { color: palette.subtitle }]}>
-              Joined {new Date(auth?.currentUser?.metadata.creationTime).toLocaleDateString()}
-            </Text>
+        {/* Statistics Cards */}
+        <View style={styles.statsContainer}>
+          <View style={[styles.statCard, { backgroundColor: palette.card }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#E3F2FD' }]}>
+              <MaterialCommunityIcons name="message-text" size={24} color="#2196F3" />
+            </View>
+            <Text style={[styles.statNumber, { color: palette.text }]}>{userStats.totalChats}</Text>
+            <Text style={[styles.statLabel, { color: palette.subtitle }]}>Total Chats</Text>
           </View>
+
+          <View style={[styles.statCard, { backgroundColor: palette.card }]}>
+            <View style={[styles.statIconContainer, { backgroundColor: '#E8F5E8' }]}>
+              <MaterialCommunityIcons name="send" size={24} color="#4CAF50" />
+            </View>
+            <Text style={[styles.statNumber, { color: palette.text }]}>{userStats.messagesSent}</Text>
+            <Text style={[styles.statLabel, { color: palette.subtitle }]}>Messages Sent</Text>
+          </View>
+        </View>
+
+        {/* Account Information */}
+        <View style={styles.accountInfoContainer}>
+          <Text style={[styles.sectionTitle, { color: palette.text }]}>Account Information</Text>
           
-          <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={20} color={palette.subtitle} />
-            <Text style={[styles.infoText, { color: palette.subtitle }]}>
-              Last signed in {new Date(auth?.currentUser?.metadata.lastSignInTime).toLocaleDateString()}
-            </Text>
+          <View style={[styles.infoCard, { backgroundColor: palette.card }]}>
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconContainer}>
+                <MaterialCommunityIcons name="account-clock-outline" size={20} color="#FF9800" />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoTitle, { color: palette.text }]}>Member Since</Text>
+                <Text style={[styles.infoValue, { color: palette.subtitle }]}>
+                  {new Date(auth?.currentUser?.metadata.creationTime).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={[styles.divider, { backgroundColor: palette.border }]} />
+            
+            <View style={styles.infoRow}>
+              <View style={styles.infoIconContainer}>
+                <Ionicons name="time-outline" size={20} color="#9C27B0" />
+              </View>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoTitle, { color: palette.text }]}>Last Active</Text>
+                <Text style={[styles.infoValue, { color: palette.subtitle }]}>
+                  {new Date(auth?.currentUser?.metadata.lastSignInTime).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -245,40 +351,41 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingBottom: 10,
   },
   avatarContainer: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 20,
+    paddingBottom: 15,
   },
   avatarWrapper: {
     position: 'relative',
-    marginBottom: 15,
+    marginBottom: 10,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
   avatarLabel: {
     color: 'white',
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: 'bold',
   },
   cameraIcon: {
     position: 'absolute',
     bottom: 0,
     right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
@@ -288,30 +395,119 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   userName: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginTop: 10,
+    marginTop: 8,
     textAlign: 'center',
   },
   userEmail: {
-    fontSize: 16,
-    marginTop: 5,
+    fontSize: 14,
+    marginTop: 3,
     textAlign: 'center',
   },
   infoContainer: {
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 15,
   },
   cell: {
     borderRadius: 12,
-    marginBottom: 12,
-    padding: 16,
+    marginBottom: 8,
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
   },
+  
+  // Statistics Cards
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    marginBottom: 15,
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  
+  // Account Information
+  accountInfoContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  infoCard: {
+    borderRadius: 12,
+    padding: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  infoIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  infoValue: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 8,
+    marginLeft: 48,
+  },
+  
   additionalInfo: {
     marginHorizontal: 20,
     padding: 16,

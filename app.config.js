@@ -29,6 +29,9 @@ export default {
     web: {
       favicon: 'src/assets/favicon.png',
     },
+    plugins: [
+      'expo-font'
+    ],
     newArchEnabled: true,
     extra: {
       apiKey: process.env.EXPO_PUBLIC_API_KEY,

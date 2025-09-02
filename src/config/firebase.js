@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { initializeApp } from 'firebase/app';
