@@ -163,7 +163,7 @@ const RenderInputToolbar = (props) => {
         ]}
         primaryStyle={{ alignItems: 'center' }}
         placeholderTextColor={palette.subtitle}
-        renderSend={() => null}
+        renderSend={() => <View />}
       />
       <TouchableOpacity
         style={[
@@ -406,7 +406,7 @@ function Chat({ route }) {
         renderUsernameOnMessage={false}
         renderAvatarOnTop
         renderInputToolbar={(props) => <RenderInputToolbar {...props} handleEmojiPanel={handleEmojiPanel} handleImagePicker={pickImage} />}
-        renderSend={() => null}
+        renderSend={() => <View />}
         minInputToolbarHeight={50}
         scrollToBottom={true}
         alwaysShowSend={false}
@@ -456,14 +456,14 @@ function Chat({ route }) {
           columns={8}
           emojiSize={32}
           activeShortcutColor={palette.primary}
-          shortcutColor={palette.mode === 'dark' ? '#FFFFFF' : '#666666'}  
-          headerStyle={{                    
+          shortcutColor={palette.mode === 'dark' ? '#FFFFFF' : '#666666'}
+          headerStyle={{
             backgroundColor: palette.mode === 'dark' ? '#2C2C2C' : '#FFFFFF',
             borderBottomWidth: 1,
             borderBottomColor: palette.mode === 'dark' ? '#404040' : '#E0E0E0',
             paddingVertical: 12,
           }}
-          categoryLabelStyle={{             
+          categoryLabelStyle={{
             color: palette.mode === 'dark' ? '#FFFFFF' : '#000000',
             fontWeight: '600',
           }}

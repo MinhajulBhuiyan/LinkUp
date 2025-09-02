@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   usersList: {
-    paddingBottom: 20,
+    paddingBottom: 100,
   },
   userCard: {
     flexDirection: 'row',
